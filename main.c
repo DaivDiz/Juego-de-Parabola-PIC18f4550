@@ -4,26 +4,39 @@
 #include <stdlib.h>
 #include <math.h>
 
-//CONFIGURACI?N DE BITS
+//CONFIGURACION DE BITS
 //#pragma config PLLDIV = 1, CPUDIV = OSC1_PLL2, USBDIV = 1       // USB Clock Selection bit (used in Full-Speed USB mode only; UCFG:FSEN = 1) (USB clock source comes directly from the primary oscillator block with no postscale)
 #pragma config FOSC = HS, FCMEN = OFF, IESO = OFF       // Internal/External Oscillator Switchover bit (Oscillator Switchover mode disabled)
 #pragma config PWRT = OFF, BOR = OFF, BORV = 0, VREGEN = OFF     // USB Voltage Regulator Enable bit (USB voltage regulator disabled)
 #pragma config WDT = OFF, WDTPS = 32768, CCP2MX = ON, PBADEN = OFF     // PORTB A/D Enable bit (PORTB<4:0> pins are configured as digital I/O on Reset)
 #pragma config MCLRE = ON, STVREN = OFF, LVP = OFF
 
+//Configuración de Frecuencia
 #define _XTAL_FREQ 16000000
 
 #include "glcd.h" 
 #include "delay.h"
 
 
-//Conversor de Limites
+//Funcion map para cambiar rangos como la de Arduino
 long map();
+
+//Resest -> Reinicia el programa // cleanLines -> Sirve para limpiar las filas 
+//que se desea
 void reset(),cleanLines();
 
+//Gravedad usada en las ecauciones
 float g=9.8;
+
+//Variables de tipo long para trabajar con analog y el unsigned es para que no 
+//almacene valores negativos y sea capaz de usar ese espacio en más #positivos
 unsigned long vel,theta,x,y,t;
+
+//Variable para tranformación del angulo (theta) ya que tetha esta en deg por lo
+//cual toca hacer tranformación a rad porque la libreria math.h usa rad
 double ang;
+
+//Variables para menejar las dimensiones
 unsigned long xMax,yMax,tMax;
 
 //Imagenes
@@ -93,7 +106,7 @@ const char Lose [] = {
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
-const unsigned char Win [] = {
+const char Win [] = {
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -163,80 +176,133 @@ const unsigned char Win [] = {
 
 void main(){
     GLCD_Init();
-//    ADCON1=0x0D;
-//    ADCON0=0x01;
-//    ADCON2=0xB1;
-    ADCON1bits.PCFG=0x00;
+    
+    //Configuración de ADC
+    //Configuración para asignar que puertos son A ó D
+    //PCFG=0x0D -> RA0 y RA1 son analogos el resto son digitales
+    ADCON1bits.PCFG=0x0D;
+    
+    //Configuracion de Interrupciones Globales
+    //VCFG=0x00 -> Interrupciones deshabilitadas
     ADCON1bits.VCFG=0x00;
     
+    //Selector de Canal Analogico
+    //CHS=0x00 -> Canal 0 seleccionado
     ADCON0bits.CHS=0x00;
+    //Estado de COnversion
+    //GODONE=0x00 -> En reposo
     ADCON0bits.GODONE=0x00;
+    //Permiso para el A/D
+    //ADON=0x00 -> No esta permitido hacer conversion
     ADCON0bits.ADON=0x00;
     
+    //COnfiguracion de Recoleccion de Datos
+    //ACQT=0x02 -> 4TAD
     ADCON2bits.ACQT=0x02;
+    //ADCS=0x05 -> FRC/16 
     ADCON2bits.ADCS=0x05;
+    //ADFM=0x01 -> Modo 10 bits
     ADCON2bits.ADFM=0x01;
     
+    //Todos los puertos C como entradas
     TRISC=0xFF;
     
     while(1){
-        ADCON0bits.CHS=0;
-        ADCON0bits.ADON=1;
-        ADCON0bits.GO_DONE=1;
+        //CHS=0x00 -> Canal 0 seleccionado
+        ADCON0bits.CHS=0x00;
+        //ADON=0x00 -> Esta permitido hacer conversion
+        ADCON0bits.ADON=0x01;
+        //GODONE=0x00 -> En marcha
+        ADCON0bits.GO_DONE=0x01;
         
+        //Hasta que no termine la conversion no seguir
         while(ADCON0bits.GO_DONE==1);
-        ADCON0bits.ADON=0;
+        //ADON=0x00 -> No esta permitido hacer conversion
+        ADCON0bits.ADON=0x00;
+        //Corrimiento de los valores leidos para pasarlo a dec
         vel=ADRESH*255+ADRESL;
+        //Recalcular rangos
         vel=map(vel,0,1023,0,100);
+        //Ubicar el cursor el la fila 0 columna 0
         GLCD_SetCursor(0,0);
+        //Imprimir valor decimal en la ubicación asignada anteriormente
         GLCD_Printf("Velocidad: %3d m/s",vel);
+        //Tiempo necesario entre cambio de canal
         __delay_ms(4);
         
-        ADCON0bits.CHS=1;
-        ADCON0bits.ADON=1;
-        ADCON0bits.GO_DONE=1;
+        //CHS=0x01 -> Canal 1 seleccionado
+        ADCON0bits.CHS=0x01;
+        //ADON=0x01 -> Esta permitido hacer conversion
+        ADCON0bits.ADON=0x01;
+        //GODONE=0x01 -> En marcha
+        ADCON0bits.GO_DONE=0x01;
         
+        //Hasta que no termine la conversion no seguir
         while(ADCON0bits.GO_DONE==1);
+        //ADON=0x00 -> No esta permitido hacer conversion
         ADCON0bits.ADON=0;
+        //Corrimiento de los valores leidos para pasarlo a dec
         theta=ADRESH*255+ADRESL;
+        //Recalcular rangos
         theta=map(theta,0,1023,0,90);
+        //Transformación de deg to rad
         ang=theta*(M_PI/180);
+        //Imprimir valor de theta (deg) una fila debajo de la anterior impresión
         GLCD_Printf("\nAngulo: %2d~",theta);
+        //Tiempo necesario entre cambio de canal
         __delay_ms(4);
         
         //Switch para iniciar el juego
         if(PORTCbits.RC6==1){
+            //Limpieza de GLCD
             GLCD_Clear();
-            tMax=(2*vel*sinl(ang))/9.8;
+            //Ecuación para calcular tiempo de vuelo
+            tMax=(2*vel*sinl(ang))/g;
+            //Ecuación para calcular la distancia maxima en el eje x
             xMax=vel*cosl(ang)*tMax;
-            yMax=(vel*sinl(ang)*(tMax/2))-(0.5*9.8*powl((tMax/2),2));
+            //Ecuación para calcular la distancia maxima en el eje y 
+            yMax=(vel*sinl(ang)*(tMax/2))-(0.5*g*powl((tMax/2),2));
             
-            //Objeto
+            //Objetivo
+            //Variables de posicion para el objetivo
             int posXo=80,posYo=7;
+            //Ubicar el cursor en las coordenadas donde va ir el objeto
             GLCD_SetCursor(posYo,posXo);
+            //Imprimir un circulo ° por configuración de librerias el signo ~
+            //corresponde al signo °
             GLCD_Printf("~");
             
             //Obstaculo
+            //Varaibles de posicion para el obstaculo
             int posXObs=50;
+            //Imprimir dos caracteres | para formar una columna de 2 filas de alto
             for(int i=6;i<8;i++){
+                //Ubicar cursor en la fila del contador y columna de la posicion
+                //x del obstaculo
                 GLCD_SetCursor(i,posXObs);
+                //Imprime el primer | para luego imprimir otro una fila arriba
                 GLCD_Printf("|");
             }
             
+            //Temporizador en 0.1s
             float t2=0;
-            int cont=0;
+            
             while(1){
+                //Ecuación para calcular la posicion x en el instante t2
                 x=vel*cosl(ang)*t2;
+                //Ecuación para calcular la posicion y en el instante t2
                 y=(vel*sinl(ang)*t2)-(0.5*9.8*(powl(t2,2)));
-                if(t2<=(tMax+1)){
-                    
-                    
+                
+                //Control de limite de distancia
+                if(t2<=(tMax+1)){    
                     if(y<=0){
                         y=0;
                     }
                     
+                    //Calculo de fila dependiendo de la posicion y actual
                     int fL=8-(y/63);
                     
+                    //Limitar las filas para evitar desbordamientos
                     if(fL>7){
                         fL=7;
                     }
@@ -244,27 +310,41 @@ void main(){
                         fL=0;
                     }
                     
+                    //Calculo de columna dependiendo de la posicion x actual
                     int rW=x/7.96;
+                    
+                    //Calculo de pixel a prender en la GLCD
                     int posY=63-(y/7.96875);
+                    
+                    //Varaible para transforma de pixel de GLCD a pixel de fila
+                    //Por ejemplo si tengo que prender el pixel 16 en el eje y 
+                    //y columna x entonces se que el pixel 16 corresponde al
+                    //pixel 7 fila 1 (tomando como 0 la fila superior)
                     int py;
+                    
+                    //Calculo de pixel correspondiente en la fila
                     py=8+(posY-(8*fL));
+                    
+                    //Limitar los pixeles para evitar desbordamientos
                     if(py>7){
                         py=7;
                     }
                     if(py<0){
                         py=0;
                     }
+                    
+                    //Calculo de valor hexadecimal que se debe asignar a la fila
+                    //para prender el pixel correspondiente
                     int py2;
                     py2=pow(2,py);
                     
-                    if(fL>=7 && py2==0){
-                        GLCD_SetCursor(0,0);
-                        GLCD_Printf("%d",cont);
-                        cont++;
-                    }
+                    //Ubicar el cursor en la posicion x y respectivamente
                     GLCD_SetCursor(fL,rW);
+                    //Mandar la señal del pixel a prender
                     glcd_DataWrite(py2);
                     
+                    //En caso de que el objeto haya pasado el objetivo y halla 
+                    //tocado el suelo
                     if(rW>(posXo+5)){
                         if( py>=7 && fL>=7){
                             GLCD_DisplayLogo(Lose);
@@ -274,6 +354,8 @@ void main(){
                         }
                     }
                     
+                    //En caso de que el objeto no haya pasado el objetivo pero
+                    //halla tocado el suelo
                     if(rW<posXo && x>(xMax/2)){
                         if(fL>=7 && py>=7){
                             GLCD_DisplayLogo(Lose);
@@ -283,6 +365,7 @@ void main(){
                         }
                     }
                     
+                    //En caso de que el proyectil haya colicionado el objetivo
                     if(fL==posYo){
                         if(rW>posXo && rW<(posXo+5)){
                             cleanLines(0,8);
@@ -293,6 +376,8 @@ void main(){
                         }
                     }
                     
+                    //En caso de que el proyectil haya colicionado
+                    //con el obstaculo
                     if(rW==posXObs && fL>=6){
                         GLCD_DisplayLogo(Lose);
                         DELAY_sec(3);
@@ -300,7 +385,7 @@ void main(){
                         break;
                     }
                     
-
+                    //Tiempo para calcular la siguiente posicion (delay=0.1s)
                     DELAY_ms(100);
                     t2+=0.1;
                     t=(int)t2;
@@ -313,14 +398,17 @@ void main(){
     
 }
 
+//Funcion map para redimensionar rangos *Ecuacion traida del foro de Arduino
 long map(long x, long in_m, long in_M, long out_m, long out_M){
     return (x-in_m)*(out_M-out_m)/(in_M-in_m)+out_m;
 }
 
+//Funcion de reinicio del programa
 void reset(){
     cleanLines(0,8);
 }
 
+//Funcion de limpieza para mejorar la visualización al limpiar
 void cleanLines(int start, int end){
     for(int i=start;i<end;i++){
         for(int j=0;j<128;j++){

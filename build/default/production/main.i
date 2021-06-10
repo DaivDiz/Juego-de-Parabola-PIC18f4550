@@ -6242,6 +6242,7 @@ double yn(int, double);
 
 
 
+
 # 1 "./glcd.h" 1
 # 27 "./glcd.h"
 # 1 "C:\\Program Files\\Microchip\\xc8\\v2.31\\pic\\include\\c99\\stdarg.h" 1 3
@@ -6339,29 +6340,33 @@ void GLCD_HorizontalGraph(uint8_t var_barGraphNumber_u8, uint8_t var_percentageV
 
 void GLCD_Grahp(uint8_t val);
 void glcd_DataWrite(uint8_t dat);
-# 16 "main.c" 2
+# 17 "main.c" 2
 
 
 
-long valPot;
 
 
 long map();
+
+
+
 void reset(),cleanLines();
 
 
-int setpoint;
-int min=0,max=1023;
-int secc=8;
-int val;
-
-
-
-
 float g=9.8;
+
+
+
 unsigned long vel,theta,x,y,t;
+
+
+
 double ang;
+
+
 unsigned long xMax,yMax,tMax;
+
+
 const char Lose [] = {
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -6428,7 +6433,7 @@ const char Lose [] = {
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
-const unsigned char Win [] = {
+const char Win [] = {
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -6501,79 +6506,130 @@ void main(){
 
 
 
-    ADCON1bits.PCFG=0x00;
+
+    ADCON1bits.PCFG=0x0D;
+
+
+
     ADCON1bits.VCFG=0x00;
 
+
+
     ADCON0bits.CHS=0x00;
+
+
     ADCON0bits.GODONE=0x00;
+
+
     ADCON0bits.ADON=0x00;
 
+
+
     ADCON2bits.ACQT=0x02;
+
     ADCON2bits.ADCS=0x05;
+
     ADCON2bits.ADFM=0x01;
+
 
     TRISC=0xFF;
 
     while(1){
-        ADCON0bits.CHS=0;
-        ADCON0bits.ADON=1;
-        ADCON0bits.GO_DONE=1;
+
+        ADCON0bits.CHS=0x00;
+
+        ADCON0bits.ADON=0x01;
+
+        ADCON0bits.GO_DONE=0x01;
+
 
         while(ADCON0bits.GO_DONE==1);
-        ADCON0bits.ADON=0;
+
+        ADCON0bits.ADON=0x00;
+
         vel=ADRESH*255+ADRESL;
+
         vel=map(vel,0,1023,0,100);
+
         GLCD_SetCursor(0,0);
+
         GLCD_Printf("Velocidad: %3d m/s",vel);
+
         _delay((unsigned long)((4)*(16000000/16000.0)));
 
-        ADCON0bits.CHS=1;
-        ADCON0bits.ADON=1;
-        ADCON0bits.GO_DONE=1;
+
+        ADCON0bits.CHS=0x01;
+
+        ADCON0bits.ADON=0x01;
+
+        ADCON0bits.GO_DONE=0x01;
+
 
         while(ADCON0bits.GO_DONE==1);
+
         ADCON0bits.ADON=0;
+
         theta=ADRESH*255+ADRESL;
+
         theta=map(theta,0,1023,0,90);
+
         ang=theta*(3.14159265358979323846/180);
+
         GLCD_Printf("\nAngulo: %2d~",theta);
+
         _delay((unsigned long)((4)*(16000000/16000.0)));
+
 
         if(PORTCbits.RC6==1){
+
             GLCD_Clear();
-            tMax=(2*vel*sinf(ang))/9.8;
+
+            tMax=(2*vel*sinf(ang))/g;
+
             xMax=vel*cosf(ang)*tMax;
-            yMax=(vel*sinf(ang)*(tMax/2))-(0.5*9.8*powf((tMax/2),2));
-            GLCD_SetCursor(3,0);
 
-
+            yMax=(vel*sinf(ang)*(tMax/2))-(0.5*g*powf((tMax/2),2));
 
 
 
             int posXo=80,posYo=7;
+
             GLCD_SetCursor(posYo,posXo);
+
+
             GLCD_Printf("~");
 
 
+
             int posXObs=50;
+
             for(int i=6;i<8;i++){
+
+
                 GLCD_SetCursor(i,posXObs);
+
                 GLCD_Printf("|");
             }
 
+
             float t2=0;
+
             int cont=0;
             while(1){
+
                 x=vel*cosf(ang)*t2;
+
                 y=(vel*sinf(ang)*t2)-(0.5*9.8*(powf(t2,2)));
+
+
                 if(t2<=(tMax+1)){
-
-
                     if(y<=0){
                         y=0;
                     }
 
+
                     int fL=8-(y/63);
+
 
                     if(fL>7){
                         fL=7;
@@ -6584,32 +6640,38 @@ void main(){
 
 
                     int rW=x/7.96;
-# 273 "main.c"
+
+
                     int posY=63-(y/7.96875);
+
+
+
+
+
                     int py;
+
+
                     py=8+(posY-(8*fL));
+
+
                     if(py>7){
                         py=7;
                     }
                     if(py<0){
                         py=0;
                     }
+
+
+
                     int py2;
                     py2=powf(2,py);
-
-                    if(fL>=7 && py2==0){
-                        GLCD_SetCursor(0,0);
-                        GLCD_Printf("%d",cont);
-                        cont++;
-                    }
-
-
-
-
-
+# 349 "main.c"
                     GLCD_SetCursor(fL,rW);
+
                     glcd_DataWrite(py2);
-# 307 "main.c"
+
+
+
                     if(rW>(posXo+5)){
                         if( py>=7 && fL>=7){
                             GLCD_DisplayLogo(Lose);
@@ -6617,9 +6679,9 @@ void main(){
                             reset();
                             break;
                         }
-
-
                     }
+
+
 
                     if(rW<posXo && x>(xMax/2)){
                         if(fL>=7 && py>=7){
@@ -6628,15 +6690,12 @@ void main(){
                             reset();
                             break;
                         }
-
-
                     }
+
 
                     if(fL==posYo){
                         if(rW>posXo && rW<(posXo+5)){
                             cleanLines(0,8);
-
-
                             GLCD_DisplayLogo(Win);
                             DELAY_sec(3);
                             reset();
@@ -6644,9 +6703,9 @@ void main(){
                         }
                     }
 
+
+
                     if(rW==posXObs && fL>=6){
-
-
                         GLCD_DisplayLogo(Lose);
                         DELAY_sec(3);
                         reset();
@@ -6657,9 +6716,6 @@ void main(){
                     DELAY_ms(100);
                     t2+=0.1;
                     t=(int)t2;
-                } else {
-
-
                 }
             }
         }
@@ -6669,13 +6725,16 @@ void main(){
 
 }
 
+
 long map(long x, long in_m, long in_M, long out_m, long out_M){
     return (x-in_m)*(out_M-out_m)/(in_M-in_m)+out_m;
 }
 
+
 void reset(){
     cleanLines(0,8);
 }
+
 
 void cleanLines(int start, int end){
     for(int i=start;i<end;i++){
